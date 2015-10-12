@@ -58,7 +58,7 @@ defmodule ExIrc do
 
   @spec init(any) :: {:ok, pid} | {:error, term}
   def init(_) do
-    supervise [worker(ExIrc.Client, [])], strategy: :simple_one_for_one
+    supervise [worker(ExIrc.Client, [], [restart: :temporary])], strategy: :simple_one_for_one
   end
 
 end
