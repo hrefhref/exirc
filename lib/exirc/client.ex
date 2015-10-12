@@ -30,7 +30,8 @@ defmodule ExIrc.Client do
               login_time:       "",
               channels:         [],
               capabilities:     [],
-              debug?:           false
+              debug?:           false,
+              who_buffers:      %{}
   end
 
   #################
@@ -162,6 +163,10 @@ defmodule ExIrc.Client do
   @spec names(client :: pid, channel :: binary) :: :ok | {:error, atom}
   def names(client, channel) do
     :gen_server.call(client, {:names, channel}, :infinity)
+  end
+  @spec who(client :: pid, channel :: binary) :: :ok | {:error, atom}
+  def who(client, channel) do
+    :gen_server.call(client, {:who, channel}, :infinity)
   end
   @doc """
   Change mode for a user or channel
@@ -373,6 +378,11 @@ defmodule ExIrc.Client do
   # Handles a call to send the NAMES command to the server
   def handle_call({:names, channel}, _from, state) do
     Transport.send(state, names!(channel))
+    {:reply, :ok, state}
+  end
+  # Handles a call to send the WHO command to the server
+  def handle_call({:who, channel}, _from, state) do
+    Transport.send(state, who!(channel))
     {:reply, :ok, state}
   end
   # Handles a call to change mode for a user or channel
@@ -681,6 +691,22 @@ defmodule ExIrc.Client do
     send_event {:me, message, from, channel}, state
     {:noreply, state}
   end
+
+  # WHO
+  def handle_data(%IrcMessage{:cmd => "352", :args => [_, channel, user, host, server, nick, mode, hop_and_realn]}, state) do
+    [hop, name] = String.split(hop_and_realn, " ", parts: 2)
+    :binary.compile_pattern(["@", "&"])
+    operator? = String.contains?(mode, "@")
+    nick = %{nick: nick, user: user, name: name, server: server, hops: hop, operator?: operator?}
+    buffer = Map.get(state.who_buffers, channel, [])
+    {:noreply, %ClientState{state | who_buffers: Map.put(state.who_buffers, channel, [nick|buffer])}}
+  end
+  def handle_data(%IrcMessage{:cmd => "315", :args => [_, channel, _]}, state) do
+    buffer = Map.get(state.who_buffers, channel, [])
+    send_event {:who, channel, buffer}, state
+    {:noreply, %ClientState{state | who_buffers: Map.delete(state.who_buffers, channel)}}
+  end
+
   # Called any time we receive an unrecognized IRC message
   def handle_data(%IrcMessage{} = msg, state) do
     if state.debug?, do: Logger.debug "Nonstandard message: #{Macro.to_string(msg)}"

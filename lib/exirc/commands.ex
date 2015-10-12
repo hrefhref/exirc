@@ -216,6 +216,7 @@ defmodule Irc.Commands do
   Sends a command to the server to get the list of names back
   """
   def names!(channel), do: command! ['NAMES ', channel]
+  def who!(channel), do: command! ['WHO ', channel]
   @doc """
   Send notice to channel or user
   """
