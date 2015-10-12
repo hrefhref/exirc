@@ -4,10 +4,10 @@ defmodule ExIrc.Mixfile do
   def project do
     [ app: :exirc,
       version: "0.10.0",
-      elixir: "~> 1.0.0",
+      elixir: "~> 1.0",
       description: "An IRC client library for Elixir.",
       package: package,
-      deps: [] ]
+      deps: deps ]
   end
 
   def application do
@@ -21,6 +21,10 @@ defmodule ExIrc.Mixfile do
       description: "An IRC client library for Elixir.",
       licenses: ["MIT"],
       links: %{ "GitHub" => "https://github.com/bitwalker/exirc"} ]
+  end
+
+  defp deps do
+    [{:ex_doc, "~> 0.5", only: :dev}]
   end
 
 end

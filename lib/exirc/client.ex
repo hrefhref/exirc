@@ -599,6 +599,9 @@ defmodule ExIrc.Client do
       Channels.users_join(state.channels, channel, String.split(names, " ", trim: true)),
       channel,
       channel_type)
+
+    send_event({:names_list, channel, names}, state)
+
     {:noreply, %{state | :channels => channels}}
   end
   # Called when our nick has succesfully changed
@@ -720,7 +723,9 @@ defmodule ExIrc.Client do
     {:noreply, updated_state}
   end
   # Called any time we receive a totally unrecognized message
-  def handle_data(_msg, state) do
+  def handle_data(msg, state) do
+    if state.debug? do Logger.debug "UNRECOGNIZED MSG: #{msg.cmd}"; IO.inspect(msg) end
+    send_event {:unrecognized, msg.cmd, msg}, state
     {:noreply, state}
   end
 
