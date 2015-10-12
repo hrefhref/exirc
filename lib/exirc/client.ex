@@ -465,7 +465,12 @@ defmodule ExIrc.Client do
   # General handler for messages from the IRC server
   def handle_info({:tcp, _, data}, state) do
     debug? = state.debug?
-    case Utils.parse(data) do
+    data = try do
+      Utils.parse(data)
+    rescue
+      error -> {:parse_error, error}
+    end
+    case data do
       %IrcMessage{:ctcp => true} = msg ->
         handle_data msg, state
         {:noreply, state}
@@ -473,6 +478,9 @@ defmodule ExIrc.Client do
         handle_data msg, state
       %IrcMessage{:ctcp => :invalid} = msg when debug? ->
         send_event msg, state
+        {:noreply, state}
+      {:parse_error, e} ->
+        Logger.error "ExIrc.Client Parse Error: #{inspect e}"
         {:noreply, state}
       _ ->
         {:noreply, state}
