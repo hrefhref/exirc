@@ -12,7 +12,6 @@ defmodule ExIrc.Client do
 
   # Client internal state
   defmodule ClientState do
-    @derive Access
     defstruct event_handlers:   [],
               server:           "localhost",
               port:             6667,
