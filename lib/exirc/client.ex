@@ -116,7 +116,7 @@ defmodule ExIrc.Client do
   """
   @spec msg(client :: pid, type :: atom, nick :: binary, msg :: binary) :: :ok | {:error, atom}
   def msg(client, type, nick, msg) do
-    :gen_server.call(client, {:msg, type, nick, msg}, :infinity)
+    :gen_server.cast(client, {:msg, type, nick, msg})
   end
   @doc """
   Send an action message, i.e. (/me slaps someone with a big trout)
@@ -144,14 +144,14 @@ defmodule ExIrc.Client do
   """
   @spec join(client :: pid, channel :: binary, key :: binary | nil) :: :ok | {:error, atom}
   def join(client, channel, key \\ "") do
-    :gen_server.call(client, {:join, channel, key}, :infinity)
+    :gen_server.cast(client, {:join, channel, key})
   end
   @doc """
   Leave a channel
   """
-  @spec part(client :: pid, channel :: binary) :: :ok | {:error, atom}
-  def part(client, channel) do
-    :gen_server.call(client, {:part, channel}, :infinity)
+  @spec part(client :: pid, channel :: binary, reason :: String.t) :: :ok | {:error, atom}
+  def part(client, channel, reason \\ "") do
+    :gen_server.cast(client, {:part, channel, reason})
   end
   @doc """
   Kick a user from a channel
@@ -344,32 +344,15 @@ defmodule ExIrc.Client do
   # Prevents any of the following messages from being handled if the client is not logged on to a server.
   # Instead, it returns {:error, :not_logged_in}.
   def handle_call(_, _from, %ClientState{:logged_on? => false} = state), do: {:reply, {:error, :not_logged_in}, state}
-  # Handles call to send a message
-  def handle_call({:msg, type, nick, msg}, _from, state) do
-    data = case type do
-      :privmsg -> privmsg!(nick, msg)
-      :notice  -> notice!(nick, msg)
-      :ctcp    -> notice!(nick, ctcp!(msg))
-    end
-    Transport.send state, data
-    {:reply, :ok, state}
-  end
+
   # Handle /me messages
   def handle_call({:me, channel, msg}, _from, state) do
     data = me!(channel, msg)
     Transport.send state, data
     {:reply, :ok, state}
   end
-  # Handles call to join a channel
-  def handle_call({:join, channel, key}, _from, state) do
-    Transport.send(state, join!(channel, key))
-    {:reply, :ok, state}
-  end
-  # Handles a call to leave a channel
-  def handle_call({:part, channel}, _from, state) do
-    Transport.send(state, part!(channel))
-    {:reply, :ok, state}
-  end
+
+
   # Handles a call to kick a client
   def handle_call({:kick, channel, nick, message}, _from, state) do
     Transport.send(state, kick!(channel, nick, message))
@@ -419,6 +402,26 @@ defmodule ExIrc.Client do
   # Handles call to determine if a nick is present in the given channel
   def handle_call({:channel_has_user?, channel, nick}, _from, state) do
     {:reply, Channels.channel_has_user?(state.channels, channel, nick), state}
+  end
+  # Handles call to send a message
+  def handle_cast({:msg, type, nick, msg}, state) do
+    data = case type do
+      :privmsg -> privmsg!(nick, msg)
+      :notice  -> notice!(nick, msg)
+      :ctcp    -> notice!(nick, ctcp!(msg))
+    end
+    Transport.send state, data
+    {:noreply, state}
+  end
+  # Handles message to join a channel
+  def handle_cast({:join, channel, key}, state) do
+    Transport.send(state, join!(channel, key))
+    {:noreply, state}
+  end
+  # Handles a call to leave a channel
+  def handle_cast({:part, channel, reason}, state) do
+    Transport.send(state, part!(channel, reason))
+    {:noreply, state}
   end
   # Handles message to add a new event handler process asynchronously
   def handle_cast({:add_handler, pid}, state) do
@@ -480,6 +483,7 @@ defmodule ExIrc.Client do
     rescue
       error -> {:parse_error, error}
     end
+    #IO.puts "  //irc data//  #{inspect data}"
     case data do
       %IrcMessage{:ctcp => true} = msg ->
         handle_data msg, state
@@ -600,8 +604,6 @@ defmodule ExIrc.Client do
       channel,
       channel_type)
 
-    send_event({:names_list, channel, names}, state)
-
     {:noreply, %{state | :channels => channels}}
   end
   # Called when our nick has succesfully changed
@@ -700,7 +702,7 @@ defmodule ExIrc.Client do
     [hop, name] = String.split(hop_and_realn, " ", parts: 2)
     :binary.compile_pattern(["@", "&"])
     operator? = String.contains?(mode, "@")
-    nick = %{nick: nick, user: user, name: name, server: server, hops: hop, operator?: operator?}
+    nick = %{nick: nick, user: user, name: name, host: host, server: server, hops: hop, operator?: operator?}
     buffer = Map.get(state.who_buffers, channel, [])
     {:noreply, %ClientState{state | who_buffers: Map.put(state.who_buffers, channel, [nick|buffer])}}
   end

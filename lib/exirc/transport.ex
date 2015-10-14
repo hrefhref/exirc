@@ -7,9 +7,11 @@ defmodule ExIrc.Client.Transport do
   end
 
   def send(%{ssl?: false, socket: socket}, data) do
+    #IO.puts "  //irc out//  #{inspect data}"
     :gen_tcp.send(socket, data)
   end
   def send(%{ssl?: true, socket: socket}, data) do
+    #IO.puts "  //irc out//  #{inspect data}"
     :ssl.send(socket, data)
   end
 

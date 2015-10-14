@@ -230,6 +230,7 @@ defmodule Irc.Commands do
   Send part command to server (leave a channel)
   """
   def part!(channel), do: command! ['PART ', channel]
+  def part!(channel, reason), do: command! ['PART ', channel, ' :', reason]
   @doc """
   Send quit command to server (disconnect from server)
   """
